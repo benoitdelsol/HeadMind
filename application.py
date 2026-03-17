@@ -13,6 +13,9 @@ import sys
 #Init est utilisé pour l'ajout de coleur dans le code
 init()
 
+# Répertoire sécurisé pour les fichiers chargés
+UPLOAD_DIR = os.path.abspath(os.path.join(Path(__file__).parent, 'files'))
+
 #Permet de définir l'application Flask
 app = Flask(__name__)
 
@@ -45,11 +48,12 @@ def uploaded():
             return render_template('error.html', err=err)
             #return f'{Fore.RED}[-] No selected file{Fore.RESET}'
         file_name = file.filename
-        #Check si le fichier entré est bon (test pour répondre à CodeQL)
-        if ".." in file_name or "/" in file_name or "\\" in file_name:
-            err = "Invalid filename"
+        # Validation plus stricte du nom de fichier
+        try:
+            safe_path = get_safe_file_path(file_name)
+        except ValueError as e:
+            err = str(e)
             return render_template('error.html', err=err)
-            #raise ValueError(f"{Fore.RED}[-] Invalid filename : {file.filename}{Fore.RESET}")
         else:
             file_content = process_file(file_name)
             
@@ -59,10 +63,8 @@ def uploaded():
                 return render_template('error.html', err=err)
             else:
                 print(f"{Fore.GREEN}[+] file uploded ! {file_name}{Fore.RESET}")
-                path = f'{Path(__file__).parent}'
-                path_full_write = f"{path}/files/{file_name}"
                 content = readfile(file_name)
-                writefile(path_full_write, content)
+                writefile(safe_path, content)
 
 
     return render_template('upload.html', file_content=file_content)
@@ -81,7 +83,7 @@ def files():
 @app.route('/view')
 def view_file():
     filename = request.args.get('file')  # Paramètre `file` passé dans l'URL
-    base_path = os.path.abspath('./files')  # Répertoire sécurisé
+    base_path = UPLOAD_DIR  # Répertoire sécurisé
     requested_path = os.path.abspath(os.path.join(base_path, filename))
 
 
@@ -92,8 +94,25 @@ def view_file():
     except Exception as e:
         abort(500, description=str(e))
 
+def get_safe_file_path(filename):
+    """
+    Construit un chemin sécurisé sous UPLOAD_DIR à partir d'un nom de fichier non fiable.
+    Lève ValueError si le nom ou le chemin est invalide.
+    """
+    if not filename:
+        raise ValueError("Empty filename")
+    # Interdire les séparateurs de chemin dans le nom brut
+    if os.path.sep in filename or (os.path.altsep and os.path.altsep in filename):
+        raise ValueError("Invalid filename")
+    fullpath = os.path.abspath(os.path.join(UPLOAD_DIR, filename))
+    # Vérifier que le chemin reste bien dans UPLOAD_DIR
+    if not fullpath.startswith(UPLOAD_DIR + os.path.sep):
+        raise ValueError("Invalid path")
+    return fullpath
+
 def  readfile(file_name):
-    with open (file_name, "r") as fichier:
+    safe_path = get_safe_file_path(file_name)
+    with open (safe_path, "r") as fichier:
         content = fichier.read()
     return content
 
@@ -108,7 +127,8 @@ def process_file(file_name):
     #Chargement du fichier YAML
     if ".yaml" in file_name or ".yml" in file_name:
         try:
-            with open(file_name,'rb') as f:
+            safe_path = get_safe_file_path(file_name)
+            with open(safe_path,'rb') as f:
                 content = f.read()
                 data = yaml.load(content, Loader=yaml.FullLoader) # Using vulnerable FullLoader
         except Exception as er:
