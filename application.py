@@ -60,7 +60,7 @@ def uploaded():
             else:
                 print(f"{Fore.GREEN}[+] file uploded ! {file_name}{Fore.RESET}")
                 path = f'{Path(__file__).parent}'
-                path_full_write = f"{path}\\files\{file_name}"
+                path_full_write = f"{path}/files/{file_name}"
                 content = readfile(file_name)
                 writefile(path_full_write, content)
 
@@ -70,7 +70,7 @@ def uploaded():
 @app.route('/files')
 def files():
     path = f'{Path(__file__).parent}'
-    file_path = path + "\\files"
+    file_path = path + "/"+ "files"
     print(file_path)
     fichier = []
     for item in os.listdir(file_path):
